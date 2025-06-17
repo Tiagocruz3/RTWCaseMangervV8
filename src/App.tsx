@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { ProtectedRoute, PublicRoute, AdminRoute } from './routes/AuthRoutes';
 import AppLayout from './components/layout/AppLayout';
@@ -20,13 +20,15 @@ import Users from './pages/Users';
 
 function AuthRedirectWrapper({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate(); // ✅ ADD THIS
   const { isAuthenticated, isLoading } = useAuthStore();
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading && location.pathname !== '/login') {
-      window.location.href = '/login';
+      // ✅ FIXED: Use navigate instead of window.location.href
+      navigate('/login', { replace: true });
     }
-  }, [isAuthenticated, isLoading, location.pathname]);
+  }, [isAuthenticated, isLoading, location.pathname, navigate]); // ✅ Add navigate to deps
 
   return <>{children}</>;
 }
@@ -53,7 +55,7 @@ function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [initialize]); // ✅ ADD initialize to dependency array
 
   // Show loading spinner while initializing
   if (isLoading) {
