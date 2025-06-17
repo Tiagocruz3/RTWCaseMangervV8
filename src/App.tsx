@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { ProtectedRoute, PublicRoute, AdminRoute } from './routes/AuthRoutes';
 import AppLayout from './components/layout/AppLayout';
@@ -17,6 +17,19 @@ import Reports from './pages/Reports';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import Profile from './pages/Profile';
 import Users from './pages/Users';
+
+function AuthRedirectWrapper({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const { isAuthenticated, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    if (!isAuthenticated && !isLoading && location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }, [isAuthenticated, isLoading, location.pathname]);
+
+  return <>{children}</>;
+}
 
 function App() {
   const { isAuthenticated, user, isLoading, initialize, error } = useAuthStore();
@@ -59,45 +72,47 @@ function App() {
 
   return (
     <Router>
-      <Routes>
-        {/* Public routes */}
-        <Route element={<PublicRoute />}>
-          <Route path="/login" element={<Login />} />
-        </Route>
-        
-        {/* Protected routes */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/cases" element={<Cases />} />
-            <Route path="/cases/new" element={<CreateCase />} />
-            <Route path="/cases/:id" element={<CaseView />} />
-            <Route path="/cases/:id/piawe" element={<PIAWECalculatorPage />} />
-            <Route path="/piawe" element={<PIAWECalculatorPage />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/quality-control" element={<QualityControl />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/profile" element={<Profile />} />
+      <AuthRedirectWrapper>
+        <Routes>
+          {/* Public routes */}
+          <Route element={<PublicRoute />}>
+            <Route path="/login" element={<Login />} />
           </Route>
-        </Route>
-        
-        {/* Admin routes */}
-        <Route element={<AdminRoute />}>
-          <Route element={<AppLayout />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/users" element={<Users />} />
+          
+          {/* Protected routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/cases" element={<Cases />} />
+              <Route path="/cases/new" element={<CreateCase />} />
+              <Route path="/cases/:id" element={<CaseView />} />
+              <Route path="/cases/:id/piawe" element={<PIAWECalculatorPage />} />
+              <Route path="/piawe" element={<PIAWECalculatorPage />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/quality-control" element={<QualityControl />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
           </Route>
-        </Route>
-        
-        {/* Redirect root to dashboard or login */}
-        <Route path="/" element={
-          <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
-        } />
-        
-        {/* Catch all route */}
-        <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
-      </Routes>
+          
+          {/* Admin routes */}
+          <Route element={<AdminRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/users" element={<Users />} />
+            </Route>
+          </Route>
+          
+          {/* Redirect root to dashboard or login */}
+          <Route path="/" element={
+            <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+          } />
+          
+          {/* Catch all route */}
+          <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+        </Routes>
+      </AuthRedirectWrapper>
     </Router>
   );
 }

@@ -1,3 +1,6 @@
+console.log('[Supabase] Initializing supabase client...');
+console.log('[Supabase] URL:', import.meta.env.VITE_SUPABASE_URL);
+console.log('[Supabase] ANON KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 'present' : 'missing');
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '../types/database'
 

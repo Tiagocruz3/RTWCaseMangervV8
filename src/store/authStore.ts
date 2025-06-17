@@ -74,10 +74,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null })
     
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      console.log('[Auth] Initializing...');
+      let session;
+      try {
+        const result = await supabase.auth.getSession();
+        session = result.data.session;
+        console.log('[Auth] Session:', session);
+      } catch (err) {
+        console.error('[Auth] getSession error:', err);
+        set({ user: null, isAuthenticated: false, isLoading: false, error: 'Failed to get session' });
+        return;
+      }
       
       if (session?.user) {
-        const profile = await supabaseService.getCurrentUser()
+        console.log('[Auth] Session user found, fetching profile...');
+        const profile = await supabaseService.getCurrentUser();
+        console.log('[Auth] Profile:', profile);
         
         if (profile) {
           set({
@@ -86,13 +98,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isLoading: false,
             error: null
           })
+          console.log('[Auth] Initialization complete, user authenticated.');
           return
+        } else {
+          console.log('[Auth] No profile found for user.');
         }
+      } else {
+        console.log('[Auth] No session user found.');
       }
       
       set({ user: null, isAuthenticated: false, isLoading: false, error: null })
+      console.log('[Auth] Initialization complete, no authenticated user.');
     } catch (error) {
-      console.error('Auth initialization error:', error)
+      console.error('[Auth] Auth initialization error:', error)
       set({ 
         user: null, 
         isAuthenticated: false, 
