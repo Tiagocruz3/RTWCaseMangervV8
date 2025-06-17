@@ -75,33 +75,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     try {
       console.log('[Auth] Initializing...');
-      let session;
-      try {
-        const result = await supabase.auth.getSession();
-        session = result.data.session;
-        console.log('[Auth] Session:', session);
-      } catch (err) {
-        console.error('[Auth] getSession error:', err);
-        set({ user: null, isAuthenticated: false, isLoading: false, error: 'Failed to get session' });
+      
+      // ✅ Get session with better error handling
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('[Auth] Session error:', sessionError);
+        set({ user: null, isAuthenticated: false, isLoading: false, error: null });
         return;
       }
       
+      console.log('[Auth] Session:', session);
+      
       if (session?.user) {
         console.log('[Auth] Session user found, fetching profile...');
-        const profile = await supabaseService.getCurrentUser();
-        console.log('[Auth] Profile:', profile);
-        
-        if (profile) {
-          set({
-            user: createUser(profile),
-            isAuthenticated: true,
-            isLoading: false,
-            error: null
-          })
-          console.log('[Auth] Initialization complete, user authenticated.');
-          return
-        } else {
-          console.log('[Auth] No profile found for user.');
+        try {
+          const profile = await supabaseService.getCurrentUser();
+          console.log('[Auth] Profile:', profile);
+          
+          if (profile) {
+            set({
+              user: createUser(profile),
+              isAuthenticated: true,
+              isLoading: false,
+              error: null
+            })
+            console.log('[Auth] Initialization complete, user authenticated.');
+            
+            // ✅ Set up auth listener ONLY after successful initialization
+            setupAuthListener();
+            return;
+          } else {
+            console.log('[Auth] No profile found for user.');
+          }
+        } catch (profileError) {
+          console.error('[Auth] Profile fetch error:', profileError);
         }
       } else {
         console.log('[Auth] No session user found.');
@@ -109,6 +117,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       set({ user: null, isAuthenticated: false, isLoading: false, error: null })
       console.log('[Auth] Initialization complete, no authenticated user.');
+      
+      // ✅ Set up auth listener even if no user (for future login events)
+      setupAuthListener();
+      
     } catch (error) {
       console.error('[Auth] Auth initialization error:', error)
       set({ 
@@ -123,35 +135,62 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearError: () => set({ error: null })
 }))
 
-// Auth state change listener
-supabase.auth.onAuthStateChange(async (event, session) => {
-  const state = useAuthStore.getState()
+// ✅ FIXED: Move auth listener setup to a function that's called after initialization
+let authListenerSetup = false;
+
+function setupAuthListener() {
+  // ✅ Prevent multiple listeners
+  if (authListenerSetup) return;
+  authListenerSetup = true;
   
-  if (event === 'SIGNED_OUT' || !session) {
-    useAuthStore.setState({ 
-      user: null, 
-      isAuthenticated: false, 
-      isLoading: false,
-      error: null 
-    })
-  } else if (event === 'SIGNED_IN' && session && !state.isAuthenticated) {
-    try {
-      const profile = await supabaseService.getCurrentUser()
-      
-      if (profile) {
-        useAuthStore.setState({
-          user: createUser(profile),
-          isAuthenticated: true,
+  console.log('[Auth] Setting up auth state listener...');
+  
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('[Auth] Auth state change:', event, session?.user?.id);
+    
+    const state = useAuthStore.getState();
+    
+    // ✅ Prevent conflicts during initialization
+    if (state.isLoading) {
+      console.log('[Auth] Skipping auth state change during initialization');
+      return;
+    }
+    
+    if (event === 'SIGNED_OUT' || !session) {
+      console.log('[Auth] User signed out');
+      useAuthStore.setState({ 
+        user: null, 
+        isAuthenticated: false, 
+        isLoading: false,
+        error: null 
+      })
+    } else if (event === 'SIGNED_IN' && session && !state.isAuthenticated) {
+      console.log('[Auth] User signed in, fetching profile...');
+      try {
+        const profile = await supabaseService.getCurrentUser()
+        
+        if (profile) {
+          useAuthStore.setState({
+            user: createUser(profile),
+            isAuthenticated: true,
+            isLoading: false,
+            error: null
+          })
+          console.log('[Auth] Profile updated from auth state change');
+        }
+      } catch (error) {
+        console.error('Auth state change error:', error)
+        useAuthStore.setState({ 
           isLoading: false,
-          error: null
+          error: 'Authentication state change failed'
         })
       }
-    } catch (error) {
-      console.error('Auth state change error:', error)
-      useAuthStore.setState({ 
-        isLoading: false,
-        error: 'Authentication state change failed'
-      })
     }
-  }
-})
+  });
+  
+  // ✅ Cleanup function (optional, for if you need to reset)
+  return () => {
+    subscription.unsubscribe();
+    authListenerSetup = false;
+  };
+}
